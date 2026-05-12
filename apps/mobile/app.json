@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "HackItUp POS",
+    "slug": "hackitup-pos",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow HackItUp POS to access the camera for barcode scanning."
+        }
+      ],
+      "expo-router"
+    ],
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.hinarasolutions.hackitup"
+    },
+    "ios": {
+      "bundleIdentifier": "com.hinarasolutions.hackitup",
+      "supportsTablet": false
+    },
+    "scheme": "hackitup",
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

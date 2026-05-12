@@ -1,0 +1,14 @@
+{
+  "name": "hackitup",
+  "private": true,
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:mobile": "pnpm --filter mobile start",
+    "build:web": "pnpm --filter web build",
+    "typecheck": "pnpm --filter \"*\" typecheck",
+    "lint": "pnpm --filter \"*\" lint"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}
