@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { ProductTable } from '@/components/catalog/ProductTable';
+import { AddProductButton } from '@/components/catalog/AddProductButton';
+import { CatalogHealthCard } from '@/components/catalog/CatalogHealthCard';
+import { CatalogFilters } from '@/components/catalog/CatalogFilters';
 import { type Product, MOCK_PRODUCTS } from '@hackitup/shared';
 import { calcMargin } from '@/lib/utils';
 
@@ -12,11 +15,30 @@ interface SearchParams {
   q?: string;
   category?: string;
   status?: string;
+  onTarget?: string;
+  belowTarget?: string;
+  lowStock?: string;
 }
 
 async function fetchProducts(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  { page, q, category, status }: { page: number; q: string; category: string; status: string }
+  {
+    page,
+    q,
+    category,
+    status,
+    belowTarget,
+    onTargetThreshold,
+    lowStockThreshold,
+  }: {
+    page: number;
+    q: string;
+    category: string;
+    status: string;
+    belowTarget: number;
+    onTargetThreshold: number;
+    lowStockThreshold: number;
+  }
 ) {
   let query = supabase
     .from('products')
@@ -31,7 +53,7 @@ async function fetchProducts(
     query = query.eq('category', category);
   }
   if (status === 'low_stock') {
-    query = query.lte('stock', 10);
+    query = query.lte('stock', lowStockThreshold);
   }
 
   const from = (page - 1) * PAGE_SIZE;
@@ -43,19 +65,23 @@ async function fetchProducts(
   if (status === 'below') {
     products = products.filter((p) => {
       const m = calcMargin(p.price, p.cost);
-      return m !== null && m < 25;
+      return m !== null && m < belowTarget;
     });
   } else if (status === 'healthy') {
     products = products.filter((p) => {
       const m = calcMargin(p.price, p.cost);
-      return m !== null && m >= 35;
+      return m !== null && m >= onTargetThreshold;
     });
   }
 
   return { products, totalCount: count ?? 0 };
 }
 
-async function fetchMarginHealth(supabase: Awaited<ReturnType<typeof createClient>>) {
+async function fetchMarginHealth(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  onTargetThreshold: number,
+  belowTarget: number
+) {
   const { data } = await supabase
     .from('products')
     .select('price, cost')
@@ -71,8 +97,8 @@ async function fetchMarginHealth(supabase: Awaited<ReturnType<typeof createClien
     const m = calcMargin(p.price, p.cost);
     if (m === null) continue;
     totalMargin += m;
-    if (m >= 35) onTarget++;
-    else if (m < 25) actionRequired++;
+    if (m >= onTargetThreshold) onTarget++;
+    else if (m < belowTarget) actionRequired++;
   }
 
   return {
@@ -93,12 +119,15 @@ async function fetchCategories(supabase: Awaited<ReturnType<typeof createClient>
   return cats;
 }
 
-async function fetchLowStockCount(supabase: Awaited<ReturnType<typeof createClient>>) {
+async function fetchLowStockCount(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  lowStockThreshold: number
+) {
   const { count } = await supabase
     .from('products')
     .select('id', { count: 'exact', head: true })
     .eq('is_active', true)
-    .lte('stock', 10);
+    .lte('stock', lowStockThreshold);
   return count ?? 0;
 }
 
@@ -112,6 +141,24 @@ export default async function CatalogPage({
   const category = searchParams.category ?? 'all';
   const status = searchParams.status ?? 'all';
 
+  const onTargetThreshold = Math.min(100, Math.max(0, parseFloat(searchParams.onTarget ?? '35')));
+  const belowTarget = Math.min(100, Math.max(0, parseFloat(searchParams.belowTarget ?? '25')));
+  const lowStockThreshold = Math.max(0, parseInt(searchParams.lowStock ?? '10', 10));
+
+  const thresholds = { onTarget: onTargetThreshold, belowTarget, lowStock: lowStockThreshold };
+
+  // Build a plain-object snapshot of current params so the health card can update the URL
+  const currentParams: Record<string, string> = {};
+  if (q) currentParams.q = q;
+  if (category !== 'all') currentParams.category = category;
+  if (status !== 'all') currentParams.status = status;
+  currentParams.onTarget = String(onTargetThreshold);
+  currentParams.belowTarget = String(belowTarget);
+  currentParams.lowStock = String(lowStockThreshold);
+
+  // Query string for pagination links (all current filters, no page key)
+  const pageParamBase = new URLSearchParams(currentParams).toString();
+
   let products: Product[] = [];
   let totalCount = 0;
   let health = { avgMargin: 0, onTarget: 0, actionRequired: 0, total: 0 };
@@ -123,9 +170,9 @@ export default async function CatalogPage({
       if (!p.is_active) return false;
       if (q && !p.name.toLowerCase().includes(q.toLowerCase()) && !p.sku.toLowerCase().includes(q.toLowerCase())) return false;
       if (category && category !== 'all' && p.category !== category) return false;
-      if (status === 'low_stock') return p.stock <= 10;
-      if (status === 'below') { const m = calcMargin(p.price, p.cost); return m !== null && m < 25; }
-      if (status === 'healthy') { const m = calcMargin(p.price, p.cost); return m !== null && m >= 35; }
+      if (status === 'low_stock') return p.stock <= lowStockThreshold;
+      if (status === 'below') { const m = calcMargin(p.price, p.cost); return m !== null && m < belowTarget; }
+      if (status === 'healthy') { const m = calcMargin(p.price, p.cost); return m !== null && m >= onTargetThreshold; }
       return true;
     });
     totalCount = filtered.length;
@@ -137,22 +184,22 @@ export default async function CatalogPage({
       const m = calcMargin(p.price, p.cost);
       if (m === null) continue;
       totalMarginSum += m;
-      if (m >= 35) health.onTarget++;
-      else if (m < 25) health.actionRequired++;
+      if (m >= onTargetThreshold) health.onTarget++;
+      else if (m < belowTarget) health.actionRequired++;
     }
     health.avgMargin = allActive.length ? totalMarginSum / allActive.length : 0;
     health.total = allActive.length;
 
     categories = [...new Set(MOCK_PRODUCTS.filter((p) => p.category).map((p) => p.category as string))].sort();
-    lowStockCount = MOCK_PRODUCTS.filter((p) => p.is_active && p.stock <= 10).length;
+    lowStockCount = MOCK_PRODUCTS.filter((p) => p.is_active && p.stock <= lowStockThreshold).length;
   } else {
     try {
       const supabase = await createClient();
       [{ products, totalCount }, health, categories, lowStockCount] = await Promise.all([
-        fetchProducts(supabase, { page, q, category, status }),
-        fetchMarginHealth(supabase),
+        fetchProducts(supabase, { page, q, category, status, belowTarget, onTargetThreshold, lowStockThreshold }),
+        fetchMarginHealth(supabase, onTargetThreshold, belowTarget),
         fetchCategories(supabase),
-        fetchLowStockCount(supabase),
+        fetchLowStockCount(supabase, lowStockThreshold),
       ]);
     } catch {
       // Graceful fallback when env vars are not yet configured
@@ -174,7 +221,7 @@ export default async function CatalogPage({
       )}
 
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="font-headline-lg text-headline-lg text-on-surface mb-2 tracking-tight">
             Product Catalog
@@ -188,10 +235,7 @@ export default async function CatalogPage({
             <span className="material-symbols-outlined text-sm">download</span>
             Export Report
           </button>
-          <button className="h-[48px] px-6 rounded-full bg-primary text-on-primary font-body-sm text-body-sm font-semibold hover:opacity-90 transition-opacity shadow-sm flex items-center gap-2">
-            <span className="material-symbols-outlined text-sm">add</span>
-            Add Product
-          </button>
+          <AddProductButton />
         </div>
       </div>
 
@@ -200,88 +244,33 @@ export default async function CatalogPage({
         {/* Search & Filter */}
         <div className="lg:col-span-8 bg-surface-container-lowest border border-outline-variant rounded-xl p-6 flex flex-col gap-4">
           <h2 className="font-headline-md text-headline-md text-on-surface">Catalog Search &amp; Filter</h2>
-          <form method="GET" className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">
-                search
-              </span>
-              <input
-                name="q"
-                defaultValue={q}
-                type="text"
-                placeholder="Search by SKU, Name, or Barcode…"
-                className="w-full pl-10 pr-4 py-3 bg-surface border border-outline rounded-lg text-on-surface focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm transition-all outline-none"
-              />
-            </div>
-            <select
-              name="category"
-              defaultValue={category}
-              className="w-full sm:w-48 px-4 py-3 bg-surface border border-outline rounded-lg text-on-surface focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm appearance-none outline-none cursor-pointer"
-            >
-              <option value="all">All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-            <select
-              name="status"
-              defaultValue={status}
-              className="w-full sm:w-56 px-4 py-3 bg-surface border border-outline rounded-lg text-on-surface focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm appearance-none outline-none cursor-pointer"
-            >
-              <option value="all">Status: All Products</option>
-              <option value="below">Status: Below Target Margin</option>
-              <option value="healthy">Status: Healthy Margin</option>
-              <option value="low_stock">Status: Low Stock (≤10 units)</option>
-            </select>
-            <button type="submit" className="hidden" aria-hidden />
-          </form>
+          <CatalogFilters
+            q={q}
+            category={category}
+            status={status}
+            categories={categories}
+            thresholds={thresholds}
+          />
         </div>
 
-        {/* Health Summary */}
-        <div className="lg:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-6 flex flex-col justify-between">
-          <div>
-            <h3 className="font-body-sm text-body-sm text-on-surface-variant mb-1 uppercase tracking-wider">
-              Overall Catalog Health
-            </h3>
-            <div className="font-headline-lg text-headline-lg text-on-surface flex items-baseline gap-2">
-              {health.avgMargin.toFixed(1)}%
-              <span className="font-body-sm text-body-sm text-outline font-normal">Avg Margin</span>
-            </div>
-          </div>
-          <div className="mt-6 flex flex-col gap-3">
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm">
-                <div className="w-2 h-2 rounded-full bg-primary" />
-                On Target (&gt;35%)
-              </span>
-              <span className="font-label-mono text-label-mono text-on-surface">
-                {health.onTarget.toLocaleString()} items
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2 text-error font-body-sm text-body-sm font-medium">
-                <div className="w-2 h-2 rounded-full bg-error" />
-                Below Target (&lt;25%)
-              </span>
-              <span className="font-label-mono text-label-mono text-error font-bold">
-                {health.actionRequired} items
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm">
-                <span className="material-symbols-outlined text-[14px] text-tertiary">inventory</span>
-                Low Stock (≤10)
-              </span>
-              <span className={`font-label-mono text-label-mono ${lowStockCount > 0 ? 'text-error font-bold' : 'text-on-surface'}`}>
-                {lowStockCount} items
-              </span>
-            </div>
-          </div>
-        </div>
+        {/* Health Summary — client component with editable thresholds */}
+        <CatalogHealthCard
+          health={health}
+          lowStockCount={lowStockCount}
+          thresholds={thresholds}
+          currentParams={currentParams}
+        />
       </div>
 
       {/* Product Table */}
-      <ProductTable initialProducts={products} totalCount={totalCount} page={page} />
+      <ProductTable
+        initialProducts={products}
+        totalCount={totalCount}
+        page={page}
+        pageParamBase={pageParamBase}
+        belowTarget={belowTarget}
+        lowStock={lowStockThreshold}
+      />
 
       <div className="h-8" />
     </div>

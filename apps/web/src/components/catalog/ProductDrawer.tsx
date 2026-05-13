@@ -30,9 +30,10 @@ function MarginChip({ margin }: { margin: number | null }) {
 interface ProductDrawerProps {
   product: Product | null;
   onClose: () => void;
+  lowStock?: number;
 }
 
-function DrawerContent({ product, onClose }: ProductDrawerProps) {
+function DrawerContent({ product, onClose, lowStock = 10 }: ProductDrawerProps) {
   if (typeof window === 'undefined') return null;
 
   const margin = product ? calcMargin(product.price, product.cost) : null;
@@ -104,18 +105,18 @@ function DrawerContent({ product, onClose }: ProductDrawerProps) {
 
               {/* Stock level */}
               <div className="flex items-center gap-2">
-                {product.stock <= 10 && (
+                {product.stock <= lowStock && (
                   <span className="material-symbols-outlined text-error text-[18px]">warning</span>
                 )}
                 <span
                   className={cn(
                     'font-label-mono text-label-mono font-bold',
-                    product.stock <= 10 ? 'text-error' : 'text-on-surface'
+                    product.stock <= lowStock ? 'text-error' : 'text-on-surface'
                   )}
                 >
                   {product.stock} units in stock
                 </span>
-                {product.stock <= 10 && (
+                {product.stock <= lowStock && (
                   <span className="font-body-sm text-body-sm text-error">— Low stock</span>
                 )}
               </div>
@@ -155,6 +156,6 @@ function DrawerContent({ product, onClose }: ProductDrawerProps) {
   return createPortal(jsx, document.body);
 }
 
-export function ProductDrawer({ product, onClose }: ProductDrawerProps) {
-  return <DrawerContent product={product} onClose={onClose} />;
+export function ProductDrawer({ product, onClose, lowStock }: ProductDrawerProps) {
+  return <DrawerContent product={product} onClose={onClose} lowStock={lowStock} />;
 }

@@ -13,7 +13,10 @@
       "Bash(xargs grep -l \"staff\\\\|Staff\")",
       "Bash(npx tsc *)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Nathan\\\\Desktop\\\\Programming_Projects\\\\HinaraSolutions\\\\HackItUp\" -Recurse -Filter \"middleware.ts\")",
-      "Bash(Select-Object -ExpandProperty FullName)"
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Read(//mnt/c/Users/Nathan/Desktop/Programming_Projects/HinaraSolutions/HackItUp/apps/**)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(cmd /c \"node_modules\\\\.bin\\\\tsc --noEmit 2>&1\")"
     ]
   }
 }

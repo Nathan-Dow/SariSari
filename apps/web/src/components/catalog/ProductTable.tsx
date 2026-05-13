@@ -13,6 +13,9 @@ interface ProductTableProps {
   initialProducts: Product[];
   totalCount: number;
   page: number;
+  pageParamBase: string;
+  belowTarget?: number;
+  lowStock?: number;
 }
 
 interface EditingState {
@@ -27,7 +30,7 @@ interface AdjustState {
   note: string;
 }
 
-function MarginChip({ margin }: { margin: number | null }) {
+function MarginChip({ margin, belowTarget }: { margin: number | null; belowTarget: number }) {
   if (margin === null) {
     return (
       <span className="inline-flex items-center gap-1 bg-surface-container px-2 py-1 rounded-md font-label-mono text-label-mono text-on-surface-variant">
@@ -39,7 +42,7 @@ function MarginChip({ margin }: { margin: number | null }) {
     <span
       className={cn(
         'inline-flex items-center gap-1 px-2 py-1 rounded-md font-label-mono text-label-mono font-bold',
-        margin < 25
+        margin < belowTarget
           ? 'bg-error-container text-on-error-container'
           : 'bg-surface-container text-on-surface'
       )}
@@ -49,8 +52,9 @@ function MarginChip({ margin }: { margin: number | null }) {
   );
 }
 
-export function ProductTable({ initialProducts, totalCount, page }: ProductTableProps) {
+export function ProductTable({ initialProducts, totalCount, page, pageParamBase, belowTarget = 25, lowStock = 10 }: ProductTableProps) {
   const [products, setProducts] = useState<Product[]>(initialProducts);
+  const pageHref = (p: number) => `?${pageParamBase}&page=${p}`;
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [saving, setSaving] = useState(false);
   const [adjusting, setAdjusting] = useState<string | null>(null);
@@ -170,7 +174,7 @@ export function ProductTable({ initialProducts, totalCount, page }: ProductTable
 
   return (
     <>
-      <ProductDrawer product={selectedProduct} onClose={() => setSelectedProduct(null)} />
+      <ProductDrawer product={selectedProduct} onClose={() => setSelectedProduct(null)} lowStock={lowStock} />
 
       <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
         <div className="w-full overflow-x-auto">
@@ -192,8 +196,8 @@ export function ProductTable({ initialProducts, totalCount, page }: ProductTable
             <tbody className="font-body-sm text-body-sm text-on-surface-variant">
               {products.map((product, i) => {
                 const margin = calcMargin(product.price, product.cost);
-                const isBelowTarget = margin !== null && margin < 25;
-                const isLowStock = product.stock <= 10;
+                const isBelowTarget = margin !== null && margin < belowTarget;
+                const isLowStock = product.stock <= lowStock;
                 const isEditing = editing?.productId === product.id;
                 const isAdjusting = adjusting === product.id;
 
@@ -321,7 +325,7 @@ export function ProductTable({ initialProducts, totalCount, page }: ProductTable
                         ${product.price.toFixed(2)}
                       </td>
                       <td className="p-4 text-right">
-                        <MarginChip margin={margin} />
+                        <MarginChip margin={margin} belowTarget={belowTarget} />
                       </td>
                       <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-3">
@@ -438,7 +442,7 @@ export function ProductTable({ initialProducts, totalCount, page }: ProductTable
           </span>
           <div className="flex gap-2">
             <a
-              href={`?page=${Math.max(1, page - 1)}`}
+              href={pageHref(Math.max(1, page - 1))}
               className={cn(
                 'p-1 rounded text-outline hover:bg-surface-container-high transition-colors',
                 page <= 1 && 'opacity-50 pointer-events-none'
@@ -447,7 +451,7 @@ export function ProductTable({ initialProducts, totalCount, page }: ProductTable
               <span className="material-symbols-outlined">chevron_left</span>
             </a>
             <a
-              href={`?page=${Math.min(totalPages, page + 1)}`}
+              href={pageHref(Math.min(totalPages, page + 1))}
               className={cn(
                 'p-1 rounded text-on-surface hover:bg-surface-container-high transition-colors',
                 page >= totalPages && 'opacity-50 pointer-events-none'
