@@ -3,9 +3,7 @@ import { NavLink } from '@/components/nav/NavLink';
 
 const navItems = [
   { href: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
-  { href: '/catalog', icon: 'inventory', label: 'Product Catalog' },
-  { href: '/margin', icon: 'payments', label: 'Margin Manager' },
-  { href: '/inventory', icon: 'history_edu', label: 'Inventory Logs' },
+  { href: '/catalog', icon: 'inventory_2', label: 'Product Catalog' },
   { href: '/staff', icon: 'terminal', label: 'Staff Terminal' },
 ];
 
@@ -70,13 +68,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <span className="material-symbols-outlined mb-1 text-[24px]">inventory_2</span>
           <span className="font-label-mono text-label-mono">Catalog</span>
         </Link>
-        <Link href="/margin" className="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 cursor-pointer">
-          <span className="material-symbols-outlined mb-1 text-[24px]">payments</span>
-          <span className="font-label-mono text-label-mono">Margins</span>
-        </Link>
-        <Link href="/inventory" className="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 cursor-pointer">
-          <span className="material-symbols-outlined mb-1 text-[24px]">history_edu</span>
-          <span className="font-label-mono text-label-mono">Logs</span>
+        <Link href="/staff" className="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 cursor-pointer">
+          <span className="material-symbols-outlined mb-1 text-[24px]">terminal</span>
+          <span className="font-label-mono text-label-mono">Staff</span>
         </Link>
       </nav>
     </div>
