@@ -11,7 +11,9 @@
       "Bash(Format-Table FullName)",
       "Bash(Select-Object -First 20)",
       "Bash(xargs grep -l \"staff\\\\|Staff\")",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Nathan\\\\Desktop\\\\Programming_Projects\\\\HinaraSolutions\\\\HackItUp\" -Recurse -Filter \"middleware.ts\")",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

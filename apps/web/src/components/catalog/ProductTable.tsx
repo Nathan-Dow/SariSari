@@ -186,7 +186,7 @@ export function ProductTable({ initialProducts, totalCount, page }: ProductTable
                 <th className="p-4 font-body-sm text-body-sm font-semibold text-on-surface text-right w-28">Unit Cost</th>
                 <th className="p-4 font-body-sm text-body-sm font-semibold text-on-surface text-right w-32">Retail Price</th>
                 <th className="p-4 font-body-sm text-body-sm font-semibold text-on-surface text-right w-36">Margin</th>
-                <th className="p-4 font-body-sm text-body-sm font-semibold text-on-surface text-center w-28">Actions</th>
+                <th className="p-4 font-body-sm text-body-sm font-semibold text-on-surface text-center w-44">Actions</th>
               </tr>
             </thead>
             <tbody className="font-body-sm text-body-sm text-on-surface-variant">
@@ -278,26 +278,24 @@ export function ProductTable({ initialProducts, totalCount, page }: ProductTable
                     <tr
                       onClick={() => !isAdjusting && setSelectedProduct(product)}
                       className={cn(
-                        'border-b border-outline-variant transition-colors group relative cursor-pointer',
+                        'border-b border-outline-variant transition-colors group cursor-pointer',
                         i % 2 === 0 ? 'bg-surface hover:bg-surface-container-low' : 'bg-surface-bright hover:bg-surface-container-low',
-                        isAdjusting && 'bg-tertiary-fixed/10 ring-1 ring-inset ring-tertiary'
+                        isAdjusting && 'bg-tertiary-fixed/10 ring-1 ring-inset ring-tertiary',
+                        isBelowTarget && !isAdjusting && '[box-shadow:inset_3px_0_0_var(--md-sys-color-error,#B3261E)]'
                       )}
                     >
-                      {isBelowTarget && !isAdjusting && (
-                        <td className="absolute left-0 top-0 bottom-0 w-1 bg-error p-0" aria-hidden />
-                      )}
-                      <td className={cn('p-4 text-center', isBelowTarget && 'pl-5')} onClick={(e) => e.stopPropagation()}>
+                      <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
                         <input type="checkbox" className="rounded border-outline text-primary focus:ring-primary h-4 w-4" />
                       </td>
                       <td className="p-4 font-label-mono text-label-mono text-primary font-medium tracking-tight">
                         {product.sku}
                       </td>
                       <td className="p-4">
-                        <div className="font-medium text-on-surface flex items-center gap-2">
-                          {product.name}
+                        <div className="font-medium text-on-surface flex items-center gap-1.5">
+                          <span>{product.name}</span>
                           {isBelowTarget && (
                             <span
-                              className="material-symbols-outlined text-error text-[16px]"
+                              className="material-symbols-outlined text-error text-[16px] shrink-0"
                               title="Margin below 25% threshold"
                             >
                               warning
@@ -326,25 +324,24 @@ export function ProductTable({ initialProducts, totalCount, page }: ProductTable
                         <MarginChip margin={margin} />
                       </td>
                       <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-center gap-1">
+                        <div className="flex items-center justify-center gap-3">
                           <button
                             onClick={() => startEdit(product)}
-                            title="Edit price / margin"
-                            className="text-primary hover:bg-primary-container/20 p-1.5 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                            className="font-body-sm text-body-sm text-primary hover:underline font-medium transition-colors"
                           >
-                            <span className="material-symbols-outlined text-[18px]">edit</span>
+                            Edit Price
                           </button>
+                          <span className="text-outline-variant text-xs">|</span>
                           <button
                             onClick={() => isAdjusting ? setAdjusting(null) : openAdjust(product.id)}
-                            title="Adjust stock"
                             className={cn(
-                              'p-1.5 rounded-full transition-colors opacity-0 group-hover:opacity-100',
+                              'font-body-sm text-body-sm font-medium transition-colors',
                               isAdjusting
-                                ? 'text-tertiary bg-tertiary-container/30 opacity-100'
-                                : 'text-on-surface-variant hover:bg-surface-container-high'
+                                ? 'text-tertiary hover:underline'
+                                : 'text-on-surface-variant hover:text-on-surface hover:underline'
                             )}
                           >
-                            <span className="material-symbols-outlined text-[18px]">inventory</span>
+                            {isAdjusting ? 'Close' : 'Adjust Stock'}
                           </button>
                         </div>
                       </td>
