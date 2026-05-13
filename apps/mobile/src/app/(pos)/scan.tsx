@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { BarcodeScanner } from '../../components/BarcodeScanner';
 import { useCartStore } from '../../store/cartStore';
 import { lookupProductByBarcode } from '../../hooks/useProductLookup';
@@ -27,7 +26,9 @@ const VIEWFINDER_W = 256;
 const VIEWFINDER_H = 160;
 
 // ── Viewfinder corner bracket ─────────────────────────────────────────────────
-function CornerBracket({ position }: {
+function CornerBracket({
+  position,
+}: {
   position: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
 }) {
   const isTop = position.startsWith('top');
@@ -50,11 +51,19 @@ function CornerBracket({ position }: {
 }
 
 // ── Quick-add product chip ────────────────────────────────────────────────────
-function QuickAddChip({ product, onPress }: { product: Product; onPress: () => void }) {
+function QuickAddChip({
+  product,
+  onPress,
+}: {
+  product: Product;
+  onPress: () => void;
+}) {
   return (
     <TouchableOpacity style={styles.chip} onPress={onPress} activeOpacity={0.75}>
-      <MaterialCommunityIcons name="cart-plus" size={16} color={colors.onSurface} />
-      <Text style={styles.chipText} numberOfLines={1}>{product.name}</Text>
+      <Text style={styles.chipIcon}>＋</Text>
+      <Text style={styles.chipText} numberOfLines={1}>
+        {product.name}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -81,7 +90,9 @@ function CartPreviewItem({
       </View>
       <View style={styles.cartRowRight}>
         <Text style={styles.cartItemQty}>x{quantity}</Text>
-        <Text style={styles.cartItemPrice}>${subtotal.toFixed(2)}</Text>
+        <Text style={styles.cartItemPrice}>
+          ₱{subtotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+        </Text>
       </View>
     </View>
   );
@@ -89,10 +100,11 @@ function CartPreviewItem({
 
 // ── Main Scan Screen ──────────────────────────────────────────────────────────
 export default function ScanScreen() {
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const { items, addItem, total } = useCartStore();
   const [scanActive, setScanActive] = useState(true);
   const [quickAddProducts, setQuickAddProducts] = useState<Product[]>([]);
+  const [lastScanned, setLastScanned] = useState<string | null>(null);
 
   // Animated scanning line
   const scanLineY = useRef(new Animated.Value(0)).current;
@@ -121,7 +133,7 @@ export default function ScanScreen() {
     outputRange: [-(VIEWFINDER_H / 2 - 6), VIEWFINDER_H / 2 - 6],
   });
 
-  // Fetch quick-add products (most frequent or alphabetical fallback)
+  // Fetch quick-add products
   useEffect(() => {
     if (DEMO_MODE) {
       setQuickAddProducts(MOCK_PRODUCTS.filter((p) => p.is_active).slice(0, 5));
@@ -139,28 +151,38 @@ export default function ScanScreen() {
   }, []);
 
   const handleBarcodeScanned = async (barcode: string) => {
-    setScanActive(false);
-    const product = await lookupProductByBarcode(barcode);
-    if (product) {
-      addItem(product);
-    } else {
-      Alert.alert('Product Not Found', `No product found for barcode: ${barcode}`);
+    try {
+      setScanActive(false);
+      setLastScanned(barcode);
+      console.log("[DB] Looking up product for barcode:", barcode);
+
+      const product = await lookupProductByBarcode(barcode);
+      
+      if (product) {
+        Alert.alert('✓ Added', `${product.name} added to cart`, [
+          { text: 'OK', onPress: () => setScanActive(true) },
+        ]);
+      } else {
+        Alert.alert('Not Found', `No product found for barcode: ${barcode}`, [
+          { text: 'OK', onPress: () => setScanActive(true) },
+        ]);
+      }
+    } catch (error) {
+      console.error("[DB] Supabase lookup failed:", error);
+      Alert.alert('Error', 'Failed to search database. Check your connection.', [
+        { text: 'OK', onPress: () => setScanActive(true) },
+      ]);
     }
-    // Re-enable scan after a short delay
-    setTimeout(() => setScanActive(true), 1500);
   };
 
   const handleQuickAdd = (product: Product) => {
     addItem(product);
+    Alert.alert('✓ Added', `${product.name} added to cart`);
   };
 
   const cartItemCount = items.reduce((sum, i) => sum + i.quantity, 0);
   const cartTotal = total();
-
-  // Overlay: 4 rectangles that frame the viewfinder, creating a "cutout" effect
   const sideW = (width - VIEWFINDER_W) / 2;
-  // The viewfinder is centered vertically in the camera area
-  // We don't know the exact height so we use flex positioning
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -168,46 +190,38 @@ export default function ScanScreen() {
 
       {/* ── Top App Bar ───────────────────────────────────────────────── */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity activeOpacity={0.7} style={styles.iconBtn}>
-            <MaterialCommunityIcons name="menu" size={24} color={colors.onSurface} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Omega POS</Text>
-        </View>
-        <TouchableOpacity activeOpacity={0.7} style={styles.iconBtn}>
-          <MaterialCommunityIcons name="account-circle" size={24} color={colors.onSurfaceVariant} />
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>SariSari POS</Text>
+        {lastScanned && (
+          <Text style={styles.lastScanned} numberOfLines={1}>
+            Last: {lastScanned}
+          </Text>
+        )}
       </View>
 
-      {/* ── Camera + Overlay ─────────────────────────────────────────── */}
+      {/* ── Camera area (takes up top 45% of screen) ──────────────────── */}
       <View style={styles.cameraArea}>
-        {/* Live camera */}
+        {/* Live camera — NO zIndex so it sits at base layer */}
         <BarcodeScanner onBarcodeScanned={handleBarcodeScanned} active={scanActive} />
 
-        {/* Dark vignette overlay — top strip */}
+        {/* Dark overlay strips — pointerEvents none so touches pass through */}
         <View style={[styles.mask, styles.maskTop]} pointerEvents="none" />
-        {/* Dark vignette overlay — bottom strip (behind cart panel) */}
         <View style={[styles.mask, styles.maskBottom]} pointerEvents="none" />
-        {/* Dark vignette overlay — left strip */}
         <View
           style={[styles.mask, styles.maskSide, { left: 0, width: sideW }]}
           pointerEvents="none"
         />
-        {/* Dark vignette overlay — right strip */}
         <View
           style={[styles.mask, styles.maskSide, { right: 0, width: sideW }]}
           pointerEvents="none"
         />
 
-        {/* ── Viewfinder frame ────────────────────────────────────────── */}
+        {/* Viewfinder frame — pointerEvents none */}
         <View style={styles.viewfinderContainer} pointerEvents="none">
           <View style={styles.viewfinder}>
             <CornerBracket position="topLeft" />
             <CornerBracket position="topRight" />
             <CornerBracket position="bottomLeft" />
             <CornerBracket position="bottomRight" />
-
-            {/* Animated scan line */}
             <Animated.View
               style={[
                 styles.scanLine,
@@ -215,84 +229,77 @@ export default function ScanScreen() {
               ]}
             />
           </View>
-
-          {/* Instruction pill */}
           <View style={styles.instructionPill}>
-            <MaterialCommunityIcons name="line-scan" size={14} color={colors.onSurfaceVariant} />
             <Text style={styles.instructionText}>Align barcode within frame</Text>
           </View>
         </View>
+      </View>
 
-        {/* ── Bottom floating panel area ─────────────────────────────── */}
-        <View style={styles.bottomPanel}>
-          {/* Quick-add chips row */}
-          <View style={styles.chipsRow}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.chipsScroll}
-            >
-              {quickAddProducts.map((p) => (
-                <QuickAddChip key={p.id} product={p} onPress={() => handleQuickAdd(p)} />
-              ))}
-            </ScrollView>
-            {/* Mic button */}
-            <TouchableOpacity style={styles.micBtn} activeOpacity={0.8}>
-              <MaterialCommunityIcons name="microphone" size={22} color={colors.onSurfaceVariant} />
-            </TouchableOpacity>
+      {/* ── Bottom section (NOT overlapping camera) ───────────────────── */}
+      <View style={styles.bottomSection}>
+        {/* Quick-add chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsScroll}
+          style={styles.chipsRow}
+        >
+          {quickAddProducts.map((p) => (
+            <QuickAddChip key={p.id} product={p} onPress={() => handleQuickAdd(p)} />
+          ))}
+        </ScrollView>
+
+        {/* Cart panel */}
+        <View style={styles.cartPanel}>
+          {/* Cart header */}
+          <View style={styles.cartHeader}>
+            <Text style={styles.cartTitle}>🛒 Current Cart</Text>
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{cartItemCount} Items</Text>
+            </View>
           </View>
 
-          {/* Floating cart panel */}
-          <View style={styles.cartPanel}>
-            {/* Cart header */}
-            <View style={styles.cartHeader}>
-              <View style={styles.cartTitleRow}>
-                <MaterialCommunityIcons name="cart" size={22} color={colors.onSurface} />
-                <Text style={styles.cartTitle}>Current Cart</Text>
-              </View>
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{cartItemCount} Items</Text>
-              </View>
-            </View>
+          {/* Cart items */}
+          <ScrollView
+            style={styles.cartItems}
+            showsVerticalScrollIndicator={false}
+            nestedScrollEnabled
+          >
+            {items.length === 0 ? (
+              <Text style={styles.emptyCart}>No items — scan a product to begin</Text>
+            ) : (
+              items.map((item, i) => (
+                <CartPreviewItem
+                  key={item.product.id}
+                  name={item.product.name}
+                  barcode={item.product.barcode}
+                  quantity={item.quantity}
+                  subtotal={item.product.price * item.quantity}
+                  isLast={i === items.length - 1}
+                />
+              ))
+            )}
+          </ScrollView>
 
-            {/* Cart items preview */}
-            <ScrollView
-              style={styles.cartItems}
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled
+          {/* Total + Checkout */}
+          <View style={styles.cartFooter}>
+            <View>
+              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalAmount}>
+                ₱{cartTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.checkoutBtn,
+                items.length === 0 && styles.checkoutBtnDisabled,
+              ]}
+              onPress={() => router.push('/(pos)/cart')}
+              disabled={items.length === 0}
+              activeOpacity={0.85}
             >
-              {items.length === 0 ? (
-                <Text style={styles.emptyCart}>No items — scan a product to begin</Text>
-              ) : (
-                items.map((item, i) => (
-                  <CartPreviewItem
-                    key={item.product.id}
-                    name={item.product.name}
-                    barcode={item.product.barcode}
-                    quantity={item.quantity}
-                    subtotal={item.product.price * item.quantity}
-                    isLast={i === items.length - 1}
-                  />
-                ))
-              )}
-            </ScrollView>
-
-            {/* Total + Checkout */}
-            <View style={styles.cartFooter}>
-              <View>
-                <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalAmount}>${cartTotal.toFixed(2)}</Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.checkoutBtn, items.length === 0 && styles.checkoutBtnDisabled]}
-                onPress={() => router.push('/(pos)/cart')}
-                disabled={items.length === 0}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.checkoutText}>Checkout</Text>
-                <MaterialCommunityIcons name="arrow-right" size={20} color={colors.onPrimary} />
-              </TouchableOpacity>
-            </View>
+              <Text style={styles.checkoutText}>Checkout →</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -311,67 +318,58 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    height: 64,
+    height: 56,
     paddingHorizontal: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.outlineVariant,
-    zIndex: 20,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
     color: colors.primary,
   },
-  iconBtn: {
-    padding: 6,
+  lastScanned: {
+    fontSize: 11,
+    color: colors.onSurfaceVariant,
+    maxWidth: 180,
   },
 
-  // Camera area
+  // Camera — takes top 42% of remaining screen
   cameraArea: {
-    flex: 1,
+    flex: 42,
     position: 'relative',
-    backgroundColor: colors.surfaceDim,
+    backgroundColor: '#000',
     overflow: 'hidden',
   },
 
-  // Dark mask strips (4-rectangle cutout approach)
+  // Dark mask strips
   mask: {
     position: 'absolute',
-    backgroundColor: 'rgba(45, 49, 51, 0.62)',
-    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   maskTop: {
     top: 0,
     left: 0,
     right: 0,
-    height: '20%',
+    height: '15%',
   },
   maskBottom: {
     bottom: 0,
     left: 0,
     right: 0,
-    // Bottom portion is covered by the cart panel; we fade from the viewfinder
-    top: '48%',
+    height: '15%',
   },
   maskSide: {
-    top: '20%',
-    bottom: '52%',
+    top: '15%',
+    bottom: '15%',
   },
 
   // Viewfinder
   viewfinderContainer: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    // Center it in the upper portion, above the cart panel
-    paddingBottom: '45%',
   },
   viewfinder: {
     width: VIEWFINDER_W,
@@ -379,60 +377,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(119, 118, 131, 0.4)',
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   bracket: {
     position: 'absolute',
     width: 28,
     height: 28,
-    borderColor: colors.secondaryContainer,
+    borderColor: '#fff',
   },
   scanLine: {
     position: 'absolute',
     width: '100%',
     height: 2,
     backgroundColor: colors.secondary,
-    shadowColor: colors.secondary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 6,
-    elevation: 4,
   },
-
-  // Instruction pill
   instructionPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 20,
-    backgroundColor: colors.surfaceContainerHigh,
+    marginTop: 16,
+    backgroundColor: 'rgba(0,0,0,0.55)',
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 7,
     borderRadius: 999,
   },
   instructionText: {
     fontSize: 12,
+    color: '#fff',
     fontWeight: '500',
-    color: colors.onSurfaceVariant,
-    letterSpacing: 0.3,
   },
 
-  // Bottom floating panel
-  bottomPanel: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 30,
+  // Bottom section — takes remaining 58% — normal flow so buttons work
+  bottomSection: {
+    flex: 58,
+    backgroundColor: colors.surface,
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    height: '55%',
-    justifyContent: 'flex-end',
+    paddingTop: 10,
+    paddingBottom: 8,
   },
+
+  // Quick-add chips
   chipsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    flexShrink: 0,
     marginBottom: 10,
   },
   chipsScroll: {
@@ -447,50 +430,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.outlineVariant,
     paddingHorizontal: 14,
-    paddingVertical: 0,
-    height: 48,
+    height: 40,
     borderRadius: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 3,
-      },
-      android: { elevation: 2 },
-    }),
+  },
+  chipIcon: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '700',
   },
   chipText: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.onSurface,
     fontWeight: '500',
-  },
-  micBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 999,
-    backgroundColor: colors.surfaceContainerHighest,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
   },
 
   // Cart panel
   cartPanel: {
+    flex: 1,
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
-    padding: 16,
-    gap: 12,
+    padding: 14,
+    gap: 10,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
       },
-      android: { elevation: 8 },
+      android: { elevation: 4 },
     }),
   },
   cartHeader: {
@@ -498,46 +468,36 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  cartTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   cartTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: colors.onSurface,
   },
   cartBadge: {
     backgroundColor: colors.secondaryContainer,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 999,
   },
   cartBadgeText: {
     fontSize: 12,
     fontWeight: '600',
     color: colors.onSecondaryContainer,
-    letterSpacing: 0.3,
   },
-
-  // Cart items
   cartItems: {
-    maxHeight: 120,
+    flex: 1,
   },
   cartRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 7,
   },
   cartRowBorder: {
     borderBottomWidth: 1,
     borderBottomColor: colors.surfaceContainerHigh,
   },
-  cartRowLeft: {
-    flex: 1,
-  },
+  cartRowLeft: { flex: 1 },
   cartItemName: {
     fontSize: 14,
     fontWeight: '600',
@@ -546,30 +506,27 @@ const styles = StyleSheet.create({
   cartItemBarcode: {
     fontSize: 11,
     color: colors.onSurfaceVariant,
-    fontVariant: ['tabular-nums'],
     marginTop: 2,
-    letterSpacing: 0.5,
   },
   cartRowRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 14,
   },
   cartItemQty: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.onSurfaceVariant,
   },
   cartItemPrice: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.onSurface,
-    fontVariant: ['tabular-nums'],
   },
   emptyCart: {
     fontSize: 13,
     color: colors.onSurfaceVariant,
     textAlign: 'center',
-    paddingVertical: 16,
+    paddingVertical: 20,
   },
 
   // Cart footer
@@ -577,36 +534,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 12,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: colors.outlineVariant,
   },
   totalLabel: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.onSurfaceVariant,
   },
   totalAmount: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     color: colors.onSurface,
   },
   checkoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
     backgroundColor: colors.primary,
     height: 56,
     paddingHorizontal: 28,
     borderRadius: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   checkoutBtnDisabled: {
-    opacity: 0.45,
+    opacity: 0.4,
   },
   checkoutText: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.onPrimary,
   },
 });
