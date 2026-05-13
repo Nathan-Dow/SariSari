@@ -23,10 +23,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${ibmPlexSans.variable} ${jetbrainsMono.variable}`}>
-      <body className="bg-background text-on-background font-body-md text-body-md antialiased">
-        {children}
+      // Add suppressHydrationWarning here
+      <html lang="en" suppressHydrationWarning className={`${ibmPlexSans.variable} ${jetbrainsMono.variable}`}>
+      <body suppressHydrationWarning className="bg-background text-on-background font-body-md text-body-md antialiased">
+      {children}
       </body>
-    </html>
+      </html>
   );
 }

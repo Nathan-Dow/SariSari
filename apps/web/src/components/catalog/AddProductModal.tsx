@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -35,12 +35,21 @@ interface AddProductModalProps {
 }
 
 function ModalContent({ open, onClose }: AddProductModalProps) {
+  // Add a mounted state
+  const [mounted, setMounted] = useState(false);
+
   const [form, setForm] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  if (typeof window === 'undefined') return null;
+  // Set mounted to true after the first client-side render
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Use the mounted state to prevent rendering the portal during hydration
+  if (!mounted) return null;
 
   const set = (field: keyof FormState) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>

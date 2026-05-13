@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Product } from '@hackitup/shared';
 import { cn, calcMargin, priceFromMargin } from '@/lib/utils';
@@ -60,6 +60,10 @@ export function ProductTable({ initialProducts, totalCount, page, pageParamBase,
   const [adjusting, setAdjusting] = useState<string | null>(null);
   const [adjustState, setAdjustState] = useState<AdjustState>({ delta: 0, reason: 'restock', note: '' });
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  useEffect(() => {
+    setProducts(initialProducts);
+  }, [initialProducts]);
 
   // ── Price/margin edit logic (identical to MarginTable) ─────────────────────
   const startEdit = (product: Product) => {

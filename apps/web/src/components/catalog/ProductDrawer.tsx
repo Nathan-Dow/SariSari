@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { Product } from '@hackitup/shared';
 import { cn, calcMargin } from '@/lib/utils';
@@ -34,7 +35,13 @@ interface ProductDrawerProps {
 }
 
 function DrawerContent({ product, onClose, lowStock = 10 }: ProductDrawerProps) {
-  if (typeof window === 'undefined') return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
 
   const margin = product ? calcMargin(product.price, product.cost) : null;
 
